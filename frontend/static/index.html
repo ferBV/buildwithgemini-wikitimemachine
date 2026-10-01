@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WikiTimeMachine | Explorador Histórico</title>
+<!-- Material Symbols for A2UI icons -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined">
+<!-- Google Fonts: Inter & Cinzel -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<!-- Marked.js for robust Markdown parsing -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<!-- DOMPurify for secure HTML sanitization -->
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+
+<style>
+  :root {
+    --accent: #b8860b;
+    --accent-dark: #8b6508;
+    --accent-light: #fff8e7;
+    --bg: #0f141c;
+    --card-bg: #18202c;
+    --user-bubble: #1f3a5f;
+    --agent-bubble: #1a2332;
+    --text-main: #e8ecf2;
+    --text-muted: #9aa5b5;
+    --border: #2a374a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text-main);
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+
+  header {
+    background: linear-gradient(135deg, #131924 0%, #1e2838 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 0.9rem 1.4rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .brand-icon {
+    font-size: 1.8rem;
+    line-height: 1;
+    filter: drop-shadow(0 0 6px rgba(184, 134, 11, 0.4));
+  }
+  .brand-title {
+    font-family: 'Cinzel', serif;
+    font-size: 1.25rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: #f7d774;
+    margin: 0;
+  }
+  .brand-subtitle {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+  .status-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.75rem;
+    padding: 0.35rem 0.7rem;
+    border-radius: 20px;
+    background: rgba(46, 204, 113, 0.12);
+    color: #2ecc71;
+    border: 1px solid rgba(46, 204, 113, 0.3);
+  }
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #2ecc71;
+    box-shadow: 0 0 8px #2ecc71;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.85); }
+  }
+
+  #log {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.5rem 1rem;
+    max-width: 860px;
+    width: 100%;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.2rem;
+  }
+
+  .msg {
+    display: flex;
+    gap: 0.75rem;
+    max-width: 90%;
+    animation: fadeIn 0.3s ease-in-out;
+  }
+  .msg.user {
+    align-self: flex-end;
+    flex-direction: row-reverse;
+  }
+  .msg.agent {
+    align-self: flex-start;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+    background: #222d3d;
+    border: 1px solid var(--border);
+  }
+  .msg.user .avatar {
+    background: #2b4970;
+  }
+
+  .bubble {
+    padding: 0.85rem 1.1rem;
+    border-radius: 14px;
+    background: var(--agent-bubble);
+    border: 1px solid var(--border);
+    line-height: 1.55;
+    font-size: 0.95rem;
+    color: var(--text-main);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  }
+  .msg.user .bubble {
+    background: var(--user-bubble);
+    border-color: #2f5480;
+    color: #fff;
+    border-bottom-right-radius: 2px;
+  }
+  .msg.agent .bubble {
+    border-bottom-left-radius: 2px;
+  }
+
+  .bubble.rich {
+    background: transparent;
+    border: none;
+    padding: 0;
+    max-width: 100%;
+    box-shadow: none;
+  }
+
+  .bubble p { margin: 0.4rem 0; }
+  .bubble p:first-child { margin-top: 0; }
+  .bubble p:last-child { margin-bottom: 0; }
+  .bubble h1, .bubble h2, .bubble h3, .bubble h4 {
+    margin: 0.7rem 0 0.4rem 0;
+    color: #f7d774;
+    font-family: 'Cinzel', serif;
+    letter-spacing: 0.02em;
+  }
+  .bubble h1 { font-size: 1.35rem; }
+  .bubble h2 { font-size: 1.2rem; }
+  .bubble h3 { font-size: 1.05rem; }
+  .bubble hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 0.8rem 0;
+  }
+  .bubble ul, .bubble ol {
+    margin: 0.4rem 0;
+    padding-left: 1.3rem;
+  }
+  .bubble li { margin: 0.25rem 0; }
+  .bubble a {
+    color: #4da3ff;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .bubble a:hover { color: #80beff; }
+  .bubble code {
+    background: rgba(0,0,0,0.3);
+    padding: 0.15rem 0.35rem;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.9em;
+    color: #e2b053;
+  }
+  .bubble pre {
+    background: #0d121a;
+    padding: 0.75rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+  }
+  .bubble pre code {
+    background: transparent;
+    padding: 0;
+    color: #e8ecf2;
+  }
+
+  .bubble img, .img-card img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 10px;
+    display: block;
+    margin: 0.8rem 0;
+    border: 1px solid var(--border);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .bubble img:hover, .img-card img:hover {
+    transform: scale(1.015);
+    box-shadow: 0 6px 20px rgba(184, 134, 11, 0.3);
+  }
+
+  .chips-container {
+    max-width: 860px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 0.4rem 1rem;
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: none;
+  }
+  .chips-container::-webkit-scrollbar { display: none; }
+  .chip {
+    background: #182230;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    padding: 0.4rem 0.8rem;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .chip:hover {
+    background: #223044;
+    color: #f7d774;
+    border-color: #8b6508;
+    transform: translateY(-1px);
+  }
+
+  .input-area {
+    background: #131924;
+    border-top: 1px solid var(--border);
+    padding: 0.75rem 1rem 1rem 1rem;
+  }
+  form {
+    max-width: 860px;
+    margin: 0 auto;
+    display: flex;
+    gap: 0.6rem;
+  }
+  input {
+    flex: 1;
+    padding: 0.85rem 1.1rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #1a2332;
+    color: var(--text-main);
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(184, 134, 11, 0.2);
+  }
+  input::placeholder { color: #64748b; }
+  button {
+    padding: 0.85rem 1.4rem;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #c59316 0%, #9a6f08 100%);
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    box-shadow: 0 2px 8px rgba(184, 134, 11, 0.3);
+  }
+  button:hover {
+    filter: brightness(1.15);
+    transform: translateY(-1px);
+  }
+  button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .typing-indicator {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0.2rem 0;
+  }
+  .typing-indicator span {
+    width: 6px;
+    height: 6px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: blink 1.4s infinite ease-in-out both;
+  }
+  .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+  .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+  @keyframes blink {
+    0%, 80%, 100% { transform: scale(0); opacity: 0.3; }
+    40% { transform: scale(1); opacity: 1; }
+  }
+
+  .a2card {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.1rem;
+    background: var(--card-bg);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    max-width: 100%;
+  }
+  .a2card + .a2card, .a2col > .a2card { margin-top: 0.6rem; }
+  .a2col { display: flex; flex-direction: column; gap: 0.5rem; }
+  .a2row { display: flex; flex-direction: row; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
+  .a2row.between { justify-content: space-between; }
+  .a2text { margin: 0; line-height: 1.5; color: var(--text-main); }
+  .a2text.a2-h1 { font-family: 'Cinzel', serif; font-size: 1.4rem; font-weight: 700; color: #f7d774; }
+  .a2text.a2-h2 { font-family: 'Cinzel', serif; font-size: 1.2rem; font-weight: 700; color: #f7d774; }
+  .a2text.a2-h3 { font-size: 1.05rem; font-weight: 600; color: #f7d774; }
+  .a2text.a2-h4 { font-size: 0.95rem; font-weight: 600; }
+  .a2text.a2-caption { font-size: 0.8rem; color: var(--text-muted); }
+  .a2divider { border: none; border-top: 1px solid var(--border); margin: 0.5rem 0; width: 100%; }
+  .a2img { max-width: 100%; border-radius: 10px; display: block; margin: 0.5rem 0; border: 1px solid var(--border); }
+  .material-symbols-outlined { font-size: 1.25rem; line-height: 1; vertical-align: middle; color: var(--accent); }
+
+  #lightbox {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.88);
+    justify-content: center;
+    align-items: center;
+    cursor: zoom-out;
+  }
+  #lightbox img {
+    max-width: 90%;
+    max-height: 85%;
+    border-radius: 12px;
+    box-shadow: 0 0 30px rgba(0,0,0,0.8);
+    border: 1px solid #444;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-icon">⏳</div>
+    <div>
+      <h1 class="brand-title">WikiTimeMachine</h1>
+      <div class="brand-subtitle">Viajero en el tiempo • Wikipedia • Imagen 3 • A2UI</div>
+    </div>
+  </div>
+  <div class="status-badge">
+    <div class="status-dot"></div>
+    <span>Agent Platform Online</span>
+  </div>
+</header>
+
+<div id="log"></div>
+
+<div class="chips-container">
+  <button type="button" class="chip" onclick="quickPrompt('Genera una postal histórica de la Antigua Roma en estilo pintura al óleo.')">🏛️ Postal Antigua Roma</button>
+  <button type="button" class="chip" onclick="quickPrompt('Geocodifica la Torre Eiffel y busca 2 museos cercanos.')">🗼 Torre Eiffel y Museos</button>
+  <button type="button" class="chip" onclick="quickPrompt('¿Qué sucedió en la Caída de Constantinopla?')">📜 Caída de Constantinopla</button>
+  <button type="button" class="chip" onclick="quickPrompt('Recuerda que mi época histórica favorita es el Renacimiento italiano.')">🧠 Guardar preferencia en memoria</button>
+  <button type="button" class="chip" onclick="quickPrompt('¿Qué recuerdas de mis preferencias?')">🕰️ Consultar recuerdos</button>
+</div>
+
+<div class="input-area">
+  <form id="form">
+    <input id="input" placeholder="Pregunta sobre una era, pide una postal o busca un lugar histórico…" autocomplete="off" autofocus>
+    <button id="send-btn">
+      <span>Enviar</span>
+      <span class="material-symbols-outlined" style="color:#fff; font-size:1.1rem">send</span>
+    </button>
+  </form>
+</div>
+
+<!-- Modal Lightbox -->
+<div id="lightbox" onclick="closeLightbox()">
+  <img id="lightbox-img" src="" alt="Enlarged view">
+</div>
+
+<script>
+const log = document.getElementById("log");
+const form = document.getElementById("form");
+const input = document.getElementById("input");
+const sendBtn = document.getElementById("send-btn");
+
+if (typeof marked !== "undefined") {
+  marked.setOptions({
+    gfm: true,
+    breaks: true,
+  });
+}
+
+function openLightbox(url) {
+  const lb = document.getElementById("lightbox");
+  const img = document.getElementById("lightbox-img");
+  img.src = url;
+  lb.style.display = "flex";
+}
+
+function closeLightbox() {
+  document.getElementById("lightbox").style.display = "none";
+}
+
+function quickPrompt(text) {
+  input.value = text;
+  form.dispatchEvent(new Event('submit'));
+}
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+function bubble(who) {
+  const m = el("div", "msg " + who);
+  const avatar = el("div", "avatar", who === "user" ? "👤" : "🏛️");
+  const b = el("div", "bubble");
+  m.appendChild(avatar);
+  m.appendChild(b);
+  log.appendChild(m);
+  log.scrollTop = log.scrollHeight;
+  return b;
+}
+
+function boundStr(v) {
+  if (v == null) return "";
+  if (typeof v === "string") return v;
+  if (typeof v.literalString === "string") return v.literalString;
+  return "";
+}
+
+function childIds(props) {
+  const ids = [];
+  if (props && typeof props.child === "string") ids.push(props.child);
+  const ch = props && props.children;
+  if (ch && Array.isArray(ch.explicitList)) {
+    for (const c of ch.explicitList) if (typeof c === "string") ids.push(c);
+  }
+  return ids;
+}
+
+function iconName(n) {
+  return String(n || "").replace(/([a-z0-9])([A-Z])/g, "$1_$2").replace(/\s+/g, "_").toLowerCase();
+}
+
+function buildNode(id, comps, seen) {
+  if (!id || seen.has(id)) return null;
+  seen.add(id);
+  const spec = comps[id];
+  if (!spec || typeof spec !== "object") return null;
+  const type = Object.keys(spec)[0];
+  const props = spec[type] || {};
+  const kids = () => childIds(props).map(cid => buildNode(cid, comps, seen)).filter(Boolean);
+
+  switch (type) {
+    case "Card": {
+      const d = el("div", "a2card");
+      kids().forEach(n => d.appendChild(n));
+      return d;
+    }
+    case "Column":
+    case "List": {
+      const horizontal = type === "List" && props.direction === "horizontal";
+      const d = el("div", horizontal ? "a2row" : "a2col");
+      kids().forEach(n => d.appendChild(n));
+      return d;
+    }
+    case "Row": {
+      const d = el("div", "a2row" + (props.distribution === "spaceBetween" ? " between" : ""));
+      kids().forEach(n => d.appendChild(n));
+      return d;
+    }
+    case "Text": {
+      const t = el("div", "a2text");
+      const hint = String(props.usageHint || "body").toLowerCase();
+      if (["h1", "h2", "h3", "h4", "h5", "h6"].includes(hint)) t.classList.add("a2-" + hint);
+      else if (hint === "caption") t.classList.add("a2-caption");
+      
+      const txt = boundStr(props.text);
+      if (typeof marked !== "undefined" && typeof DOMPurify !== "undefined") {
+        t.innerHTML = DOMPurify.sanitize(marked.parse(txt));
+      } else {
+        t.textContent = txt;
+      }
+      return t;
+    }
+    case "Divider":
+      return el("hr", "a2divider");
+    case "Image": {
+      const src = boundStr(props.url || props.src);
+      if (!/^https?:\/\//i.test(src)) return null;
+      const img = el("img", "a2img");
+      img.src = src;
+      img.alt = boundStr(props.alt) || "Postal Histórica";
+      img.onclick = () => openLightbox(src);
+      return img;
+    }
+    case "Icon": {
+      const s = el("span", "material-symbols-outlined");
+      s.textContent = iconName(boundStr(props.name) || props.name);
+      return s;
+    }
+    default:
+      return null;
+  }
+}
+
+function renderSurface(messages, container) {
+  const comps = {};
+  const roots = [];
+  for (const m of messages) {
+    if (m.beginRendering && typeof m.beginRendering.root === "string") roots.push(m.beginRendering.root);
+    const su = m.surfaceUpdate;
+    if (su && Array.isArray(su.components)) {
+      for (const c of su.components) if (c && c.id && c.component) comps[c.id] = c.component;
+    }
+  }
+  let rootIds = roots.filter(r => comps[r]);
+  if (rootIds.length === 0) {
+    const referenced = new Set();
+    for (const id in comps) {
+      const spec = comps[id];
+      childIds(spec[Object.keys(spec)[0]] || {}).forEach(c => referenced.add(c));
+    }
+    rootIds = Object.keys(comps).filter(id => !referenced.has(id));
+  }
+  let drew = false;
+  for (const rid of rootIds) {
+    const node = buildNode(rid, comps, new Set());
+    if (node) {
+      container.appendChild(node);
+      drew = true;
+    }
+  }
+  return drew;
+}
+
+function flattenText(messages) {
+  const out = [];
+  for (const m of messages) {
+    const su = m.surfaceUpdate;
+    if (su && Array.isArray(su.components)) {
+      for (const c of su.components) {
+        if (c && c.component && c.component.Text) out.push(boundStr(c.component.Text.text));
+      }
+    }
+  }
+  return out.join("\n").trim();
+}
+
+function renderReply(b, parts) {
+  b.innerHTML = "";
+  const texts = parts.filter(p => p && (p.kind === "text" || (!p.kind && p.text))).map(p => p.text || "");
+  const a2ui = parts.filter(p => p && p.kind === "a2ui" && p.data).map(p => p.data);
+
+  const textStr = texts.join("\n").trim();
+  if (textStr) {
+    const textWrapper = el("div");
+    if (typeof marked !== "undefined" && typeof DOMPurify !== "undefined") {
+      textWrapper.innerHTML = DOMPurify.sanitize(marked.parse(textStr));
+      textWrapper.querySelectorAll("img").forEach(img => {
+        img.onclick = () => openLightbox(img.src);
+      });
+    } else {
+      textWrapper.textContent = textStr;
+    }
+    b.appendChild(textWrapper);
+  }
+
+  if (a2ui.length) {
+    b.classList.add("rich");
+    if (!renderSurface(a2ui, b)) {
+      const fallback = flattenText(a2ui);
+      if (fallback) {
+        const fbNode = el("div");
+        fbNode.innerHTML = DOMPurify.sanitize(marked.parse(fallback));
+        b.appendChild(fbNode);
+      }
+    }
+  }
+
+  if (!b.childNodes.length) {
+    b.textContent = "(Sin respuesta recibida)";
+  }
+  log.scrollTop = log.scrollHeight;
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  const b = bubble("agent");
+  const welcome = "¡Saludos, explorador! Soy **WikiTimeMachine**. Puedo guiarte a través de cualquier era de la historia, consultar hechos de Wikipedia, calcular distancias y coordenadas geográficas, y generar **postales conmemorativas ilustradas** con Imagen 3.\n\n¿A qué destino o época histórica deseas viajar hoy?";
+  b.innerHTML = DOMPurify.sanitize(marked.parse(welcome));
+});
+
+form.addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const text = input.value.trim();
+  if (!text) return;
+
+  const userBubble = bubble("user");
+  userBubble.textContent = text;
+  input.value = "";
+  sendBtn.disabled = true;
+
+  const b = bubble("agent");
+  b.innerHTML = `<div class="typing-indicator"><span></span><span></span><span></span></div>`;
+
+  try {
+    const res = await fetch("/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: text })
+    });
+
+    const raw = await res.text();
+    let data;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      throw new Error(`El servidor devolvió un error (HTTP ${res.status}): ${raw.slice(0, 300)}`);
+    }
+
+    renderReply(b, data.parts || []);
+  } catch (e) {
+    b.textContent = "Error: " + e.message;
+  } finally {
+    sendBtn.disabled = false;
+    input.focus();
+  }
+});
+</script>
+</body>
+</html>
